@@ -1,56 +1,80 @@
-# micropp
+# PipelineParallelism
 
-![](docs/micropp.png)
+A project exploring **Pipeline Parallelism** in PyTorch — starting from a monolithic single-GPU baseline and progressively sharding it across multiple GPUs.
 
 ## Quick Start
 
 ```bash
-uv run torchrun --nproc-per-node=4 src/main.py
+# Install dependencies
+uv sync
+
+# Run the monolithic baseline
+uv run python src/monolith.py
 ```
 
-## Architecture
-
-- **`comms.py`**: Distributed communication primitives
-- **`model.py`**: Sharded MLP model
-- **`schedule.py`**: Pipeline schedules (naive, GPipe, 1F1B)
-- **`main.py`**: Training entry point
-
-## Pipeline Schedules
-
-- `naive_pipeline_step`: Sequential forward/backward (inefficient)
-- `gpipe_pipeline_step`: GPipe with micro-batching
-- `onef_oneb_pipeline_step`: 1F1B interleaved schedule
-
-See [kiankyars.github.io/micropp/](https://kiankyars.github.io/micropp/) for detailed explanations.
-
-## Repo Structure
+## Project Structure
 
 ```text
-├── CONTRIBUTING.md
-├── README.md
-├── docs
-├── my_work
-│   ├── step1_manual.py
-│   ├── step2_comms.py
-│   ├── step3_ping_pong.py
-│   ├── step4_model.py
-│   ├── step5_main.py
-│   └── step6_schedule.py
-├── pyproject.toml
-├── src
-│   ├── comms.py
-│   ├── main.py
-│   ├── manual.py
-│   ├── model.py
-│   ├── monolith.py
-│   ├── ping_pong.py
-│   ├── profiled_main.py
-│   ├── profiled_schedule.py
-│   ├── profiler.py
-│   └── schedule.py
-└── uv.lock
+src/
+└── monolith.py   # Single-GPU baseline (starting point)
 ```
 
-## Acknowledgements
+## `src/monolith.py` — The Monolithic Baseline
 
-Simon Boehm, TE Hao
+This is the **ground truth** model that runs entirely on a single GPU/CPU. The goal of this project is to take this monolith and shard it across multiple GPUs using pipeline parallelism.
+
+### Model: `MonolithicMLP`
+
+A deep Multi-Layer Perceptron (MLP) built with PyTorch:
+
+| Parameter | Value |
+|---|---|
+| Batch Size | `32` |
+| Hidden Dimension | `128` |
+| Total Layers | `16` (Linear + ReLU pairs) |
+| Output Classes | `2` (binary classification) |
+| Loss Function | `CrossEntropyLoss` |
+| Optimizer | `Adam (lr=0.001)` |
+| Training Steps | `50` |
+
+### Architecture
+
+```
+Input (32, 128)
+    → [Linear(128→128) + ReLU] × 16
+    → Linear(128→2)
+    → CrossEntropyLoss
+```
+
+### Training
+
+The model trains on a **fixed random batch** (same input every step) to overfit as a sanity check. Loss is printed every 5 steps:
+
+```
+--- Training Monolith (Ground Truth) ---
+Step 0  | Loss: 0.7312
+Step 5  | Loss: 0.6891
+...
+Final Loss: 0.xxxxxx  Time: x.xxxs
+```
+
+## Setup
+
+This project uses [`uv`](https://docs.astral.sh/uv/) for dependency management.
+
+```bash
+# Install uv (if not already installed)
+brew install uv
+
+# Install dependencies and set up Python 3.10 venv
+uv sync
+
+# Activate venv (optional)
+source .venv/bin/activate
+```
+
+## Dependencies
+
+- `torch >= 2.9.1`
+- `numpy >= 2.2.6`
+- Python `3.10`
